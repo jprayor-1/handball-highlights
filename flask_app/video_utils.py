@@ -1,16 +1,51 @@
-import cv2
-import numpy as np
-import os
-import matplotlib.pyplot as plt
+import cv2  # OpenCV for video processing
+import numpy as np  # Numerical operations
+import os  # File system checks
+import matplotlib.pyplot as plt  # Visualization
 
+
+def format_time(seconds):
+    """
+    Convert seconds to 'MM:SS' format.
+    """
+    minutes = int(seconds // 60)
+    secs = int(seconds % 60)
+    return f"{minutes:02d}:{secs:02d}"
+
+
+def moving_average(signal, window_size):
+    """
+    Smooths a 1D signal using a simple moving average.
+
+    Smaller window → more responsive, noisier
+
+    Larger window → smoother, longer volleys
+
+    Args:
+        signal (np.array): raw motion signal
+        window_size (int): number of samples to average over
+
+    Returns:
+        np.array: smoothed signal (same length as input)
+    """
+    # Create a normalized averaging window
+    window = np.ones(window_size) / window_size
+
+    # Convolve signal with window to smooth it
+    return np.convolve(signal, window, mode="same")
+
+
+# Absolute path to the input video file
 video_path = "/Users/jesaiahprayor/Downloads/jj_handball.mp4"
+
+# Make sure the video file exists before continuing
 if not os.path.exists(video_path):
     raise FileNotFoundError(f"Video file not found: {video_path}")
 
-# Open the video file
+# Open the video file for frame-by-frame reading
 cap = cv2.VideoCapture(video_path)
 
-# Get frames-per-second (FPS) of the video
+# Extract frames-per-second (FPS) so we can convert frames → time
 fps = cap.get(cv2.CAP_PROP_FPS)
 
 # Decide how often to sample frames
@@ -64,6 +99,7 @@ while True:
             diff_center = cv2.absdiff(gray_center, prev_gray_center)
             center_motion = np.mean(diff_center)
 
+            # Ratio of center motion vs entire frame motion
             ratio = center_motion / (full_motion + 1e-6)
 
             # Ratio test
@@ -91,70 +127,122 @@ while True:
 # Release the video file
 cap.release()
 
-# Print the first 10 motion scores for inspection
-print("First 10 motion scores:")
-print(motion_scores[:10])
 
 times = [t for t, m in motion_scores]
 motions = [m for t, m in motion_scores]
 
-raw = np.array(motions)
 
-raw_cap = np.percentile(raw, 93)
-raw_preclean = np.minimum(raw, raw_cap)
+MA_WINDOW = 5
+# Apply moving average smoothing
+motions_ma = moving_average(motions, MA_WINDOW)
 
 
-window = 5  # can tweak 3-10
-motions_smooth = np.convolve(raw_preclean, np.ones(window) / window, mode="same")
-
-median = np.median(motions_smooth)
-mad = np.median(np.abs(motions_smooth - median))
+median = np.median(motions_ma)
+mad = np.median(np.abs(motions_ma - median))
 
 # Controls how aggressive spike removal is
 SPIKE_STRENGTH = 3
+# Motion above this is considered non-gameplay noise
 spike_threshold = median + SPIKE_STRENGTH * mad
 
-gameplay_motion = motions_smooth.copy()
+# Remove spikes from the motion signal
+gameplay_motion = motions_ma.copy()
 gameplay_motion[gameplay_motion > spike_threshold] = 0
 
-MIN_EVENT_SECONDS = 1.1  # ignore spikes shorter than this
-motions_used = gameplay_motion
-threshold = np.percentile(motions_used, 90)
+# Minimum duration for a valid volley (seconds)
+# VISIT LATER --> MIN_EVENT_SECONDS = 3
 
-events = []
-current_event_start = None
+# Use cleaned motion signal for segmentation
+motions_used = gameplay_motion
+
+# Threshold defining "active play"
+THRESHOLD_PERCENTILE = 20
+threshold = np.percentile(motions_used, THRESHOLD_PERCENTILE)
+
+segments = []
+in_volley = False
+volley_start_time = None
 
 for t, motion in zip(times, motions_used):
-    if motion > threshold:
-        if current_event_start is None:
-            current_event_start = t
-    else:
-        if current_event_start is not None:
-            duration = t - current_event_start
-            if duration >= MIN_EVENT_SECONDS:
-                events.append((current_event_start, t))
-            current_event_start = None
 
-# Catch any event at the end
-if current_event_start is not None:
-    events.append((current_event_start, times[-1]))
+    if not in_volley and motion > threshold:
+        in_volley = True
+        volley_start_time = t
 
-print("Detected highlight events:")
-for start, end in events:
-    print(f"{start:.2f}s → {end:.2f}s")
+    elif in_volley and motion <= threshold:
+        in_volley = False
+        segments.append((volley_start_time, t))
 
+PRE_PADDING = 0.5  # seconds before volley start
+POST_PADDING = 1.0  # seconds after volley end
+video_end = times[-1]
+
+MIN_EVENT_SECONDS = 12  # seconds
+
+# Filter out short segments
+segments_filtered = []
+for start, end in segments:
+    duration = end - start
+    if duration >= MIN_EVENT_SECONDS:
+        segments_filtered.append((start, end))
+
+VALLEY_TOLERANCE = 2.0  # seconds
+
+merged_segments = []
+if segments_filtered:
+    current_start, current_end = segments_filtered[0]
+
+    for start, end in segments_filtered[1:]:
+        # Check gap between current end and next start
+        if start - current_end <= VALLEY_TOLERANCE:
+            # Merge segments
+            current_end = end
+        else:
+            merged_segments.append((current_start, current_end))
+            current_start, current_end = start, end
+
+    # Append last segment
+    merged_segments.append((current_start, current_end))
+
+# Create padded segments
+segments_padded = []
+for start, end in merged_segments:
+    padded_start = max(0, start - PRE_PADDING)  # don’t go below 0
+    padded_end = min(video_end, end + POST_PADDING)  # don’t exceed video length
+    segments_padded.append((padded_start, padded_end))
+
+segment_scores = []
+for start, end in segments_padded:
+    # Convert start/end times to indices
+    start_idx = np.searchsorted(times, start)
+    end_idx = np.searchsorted(times, end)
+    
+    segment_motion = motions_ma[start_idx:end_idx]
+    
+    max_motion = np.max(segment_motion)
+    mean_motion = np.mean(segment_motion)
+    duration = end - start
+    
+    # Example: combined score (you can tweak weights)
+    score = max_motion * 0.6 + mean_motion * 0.3 + duration * 0.1
+    segment_scores.append((start, end, score))
+
+# Sort descending: most exciting first
+segment_scores_sorted = sorted(segment_scores, key=lambda x: x[2], reverse=True)
+
+print("Top volleys by excitement:")
+for i, (start, end, score) in enumerate(segment_scores_sorted, 1):
+    print(f"{i}: {format_time(start)} → {format_time(end)}, score={score:.2f}")
 
 plt.figure(figsize=(12, 5))
+plt.plot(times, motions_ma, linewidth=2, label="Moving average")
+plt.axhline(threshold, color="red", linestyle="--", label="Threshold")
 
-plt.plot(times, raw_preclean, alpha=0.3, label="Raw Pre Clean")
-plt.plot(times, motions_smooth, alpha=0.6, label="Smoothed motion")
-plt.plot(times, gameplay_motion, linewidth=2, label="Spike-removed motion")
-
-plt.axhline(threshold, color="red", linestyle="--", label="Detection threshold")
-plt.axhline(spike_threshold, color="black", linestyle=":", label="Spike threshold")
+for start, end in segments_padded:
+    plt.axvspan(start, end, color="green", alpha=0.2)  # shaded region
 
 plt.xlabel("Time (seconds)")
 plt.ylabel("Motion intensity")
-plt.title("Motion Pipeline (Raw → Smoothed → Cleaned)")
+plt.title("Threshold Crossing with Pre/Post Padding")
 plt.legend()
 plt.show()
