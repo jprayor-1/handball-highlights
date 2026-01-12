@@ -313,39 +313,41 @@ def process_video(video_path="/Users/jesaiahprayor/Downloads/dboy_migz.mp4"):
     for i, (start, end, score) in enumerate(segment_scores_sorted, 1):
         print(f"{i}: {format_time(start)} → {format_time(end)}, score={score:.2f}")
 
-    plt.figure(figsize=(12, 5))
-    plt.plot(times, motions_ma, linewidth=2, label="Moving average")
-    plt.axhline(threshold, color="red", linestyle="--", label="Threshold")
+    return segment_scores_sorted
 
-    for start, end in segments_padded:
-        plt.axvspan(start, end, color="green", alpha=0.2)
+    # plt.figure(figsize=(12, 5))
+    # plt.plot(times, motions_ma, linewidth=2, label="Moving average")
+    # plt.axhline(threshold, color="red", linestyle="--", label="Threshold")
 
-    plt.xlabel("Time (seconds)")
-    plt.ylabel("Motion intensity")
-    plt.title("Detected Volleys with Threshold")
-    plt.legend()
-    plt.show()
+    # for start, end in segments_padded:
+    #     plt.axvspan(start, end, color="green", alpha=0.2)
 
-    # Variance diagnostics
-    variances = [v for t, m, v in motion_with_variance]
-    print(f"\nVariance stats:")
-    print(f"  Min: {np.min(variances):.2f}")
-    print(f"  25th percentile: {np.percentile(variances, 25):.2f}")
-    print(f"  Median: {np.median(variances):.2f}")
-    print(f"  75th percentile: {np.percentile(variances, 75):.2f}")
-    print(f"  90th percentile: {np.percentile(variances, 90):.2f}")
-    print(f"  Max: {np.max(variances):.2f}")
+    # plt.xlabel("Time (seconds)")
+    # plt.ylabel("Motion intensity")
+    # plt.title("Detected Volleys with Threshold")
+    # plt.legend()
+    # plt.show()
 
-    plt.figure(figsize=(12, 5))
-    plt.plot([t for t, m, v in motion_with_variance], variances, linewidth=2)
-    plt.axhline(
-        VARIANCE_THRESHOLD,
-        color="red",
-        linestyle="--",
-        label=f"Variance Threshold = {VARIANCE_THRESHOLD}",
-    )
-    plt.xlabel("Time (seconds)")
-    plt.ylabel("Motion Variance")
-    plt.title("Motion Variance Over Time")
-    plt.legend()
-    plt.show()
+    # # Variance diagnostics
+    # variances = [v for t, m, v in motion_with_variance]
+    # print(f"\nVariance stats:")
+    # print(f"  Min: {np.min(variances):.2f}")
+    # print(f"  25th percentile: {np.percentile(variances, 25):.2f}")
+    # print(f"  Median: {np.median(variances):.2f}")
+    # print(f"  75th percentile: {np.percentile(variances, 75):.2f}")
+    # print(f"  90th percentile: {np.percentile(variances, 90):.2f}")
+    # print(f"  Max: {np.max(variances):.2f}")
+
+    # plt.figure(figsize=(12, 5))
+    # plt.plot([t for t, m, v in motion_with_variance], variances, linewidth=2)
+    # plt.axhline(
+    #     VARIANCE_THRESHOLD,
+    #     color="red",
+    #     linestyle="--",
+    #     label=f"Variance Threshold = {VARIANCE_THRESHOLD}",
+    # )
+    # plt.xlabel("Time (seconds)")
+    # plt.ylabel("Motion Variance")
+    # plt.title("Motion Variance Over Time")
+    # plt.legend()
+    # plt.show()
