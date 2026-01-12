@@ -36,7 +36,7 @@ def moving_average(signal, window_size):
 
 
 # Absolute path to the input video file
-video_path = "/Users/jesaiahprayor/Downloads/jj_handball.mp4"
+video_path = "/Users/jesaiahprayor/Downloads/dboy_migz.mp4"
 
 # Make sure the video file exists before continuing
 if not os.path.exists(video_path):
@@ -50,7 +50,7 @@ fps = cap.get(cv2.CAP_PROP_FPS)
 
 # Decide how often to sample frames
 # Example: fps // 3 means ~3 frames per second
-sample_rate = max(1, int(fps // 3))
+sample_rate = max(1, int(fps // 2))
 
 # Store the previous frame in grayscale for comparison
 prev_gray = None
@@ -102,20 +102,15 @@ while True:
             # Ratio of center motion vs entire frame motion
             ratio = center_motion / (full_motion + 1e-6)
 
-            # Ratio test
-            ratio_threshold = 0.7
-            if ratio > ratio_threshold:
-                # Reduce the entire diff image into one scalar value
-                # This represents how much motion occurred between frames
-                motion_intensity = center_motion
+            # Reduce the entire diff image into one scalar value
+            # This represents how much motion occurred between frames
+            motion_intensity = center_motion
 
-                # Convert frame index to timestamp (seconds)
-                timestamp = frame_idx / fps
+            # Convert frame index to timestamp (seconds)
+            timestamp = frame_idx / fps
 
-                # Store timestamp and motion score
-                motion_scores.append((timestamp, motion_intensity))
-            else:
-                motion_intensity = 0.0  # remove sustained foreground walking
+            # Store timestamp and motion score
+            motion_scores.append((timestamp, motion_intensity, ratio))
 
         # Update previous frame to current frame
         prev_gray = gray
@@ -128,8 +123,70 @@ while True:
 cap.release()
 
 
-times = [t for t, m in motion_scores]
-motions = [m for t, m in motion_scores]
+def calculate_motion_variance(motion_scores, window_seconds=2.0):
+    """
+    Calculate variance of motion over a rolling time window.
+    High variance = bursty motion (volleys)
+    Low variance = steady motion (walking)
+
+    Args:
+        motion_scores: list of (timestamp, motion_intensity) tuples
+        window_seconds: size of rolling window in seconds
+
+    Returns:
+        list of (timestamp, motion_intensity, variance) tuples
+    """
+    times = [t for t, m in motion_scores]
+    motions = [m for t, m in motion_scores]
+
+    motion_with_variance = []
+
+    for i, (t, motion) in enumerate(motion_scores):
+        # Find all samples within the time window
+        window_start_time = t - window_seconds / 2
+        window_end_time = t + window_seconds / 2
+
+        # Get indices of samples in this window
+        window_samples = []
+        for j, time in enumerate(times):
+            if window_start_time <= time <= window_end_time:
+                window_samples.append(motions[j])
+
+        # Calculate variance of motion in this window
+        if len(window_samples) > 1:
+            variance = np.var(window_samples)
+        else:
+            variance = 0
+
+        motion_with_variance.append((t, motion, variance))
+
+    return motion_with_variance
+
+
+motion_with_variance = calculate_motion_variance(
+    [(t, m) for t, m, r in motion_scores], window_seconds=2.0
+)
+
+
+times = []
+motions = []
+
+RATIO_THRESHOLD = 0.7
+VARIANCE_THRESHOLD = 50.0
+
+for i, (t, motion, variance) in enumerate(motion_with_variance):
+    ratio = motion_scores[i][2]  # Get ratio from original list
+
+    # Accept motion if:
+    # 1. Ratio is good (center-focused), AND
+    # 2. Variance is high (bursty, not steady walking)
+    if ratio > RATIO_THRESHOLD and variance > VARIANCE_THRESHOLD:
+        times.append(t)
+        motions.append(motion)
+    else:
+        # Optional: still add a dampened value to avoid timeline gaps
+        times.append(t)
+        motions.append(motion * 0.1)  # Heavily dampened
 
 
 MA_WINDOW = 5
@@ -156,7 +213,7 @@ gameplay_motion[gameplay_motion > spike_threshold] = 0
 motions_used = gameplay_motion
 
 # Threshold defining "active play"
-THRESHOLD_PERCENTILE = 20
+THRESHOLD_PERCENTILE = 19
 threshold = np.percentile(motions_used, THRESHOLD_PERCENTILE)
 
 segments = []
@@ -177,7 +234,7 @@ PRE_PADDING = 0.5  # seconds before volley start
 POST_PADDING = 1.0  # seconds after volley end
 video_end = times[-1]
 
-MIN_EVENT_SECONDS = 12  # seconds
+MIN_EVENT_SECONDS = 11  # seconds, minimum length of a valid volley
 
 # Filter out short segments
 segments_filtered = []
@@ -211,21 +268,45 @@ for start, end in merged_segments:
     padded_end = min(video_end, end + POST_PADDING)  # don’t exceed video length
     segments_padded.append((padded_start, padded_end))
 
-segment_scores = []
+segments_no_timeouts = []
+TIMEOUT_INTENSITY_THRESHOLD = np.percentile(motions_ma, 40)
+
 for start, end in segments_padded:
     # Convert start/end times to indices
     start_idx = np.searchsorted(times, start)
     end_idx = np.searchsorted(times, end)
-    
+
     segment_motion = motions_ma[start_idx:end_idx]
-    
+
+    avg_intensity = np.mean(segment_motion)
+    max_intensity = np.max(segment_motion)
+
+    if avg_intensity >= TIMEOUT_INTENSITY_THRESHOLD:
+        segments_no_timeouts.append((start, end))
+    else:
+        print(
+            f"Excluding segment {format_time(start)} → {format_time(end)} due to low intensity (avg={avg_intensity:.2f}, max={max_intensity:.2f})"
+        )
+
+motions_score = moving_average(motions, 2)  # very light smoothing
+segment_scores = []
+for start, end in segments_no_timeouts:
+    # Convert start/end times to indices
+    start_idx = np.searchsorted(times, start)
+    end_idx = np.searchsorted(times, end)
+
+    segment_motion = motions_score[start_idx:end_idx]
+
     max_motion = np.max(segment_motion)
+    p90 = np.percentile(segment_motion, 90)
     mean_motion = np.mean(segment_motion)
-    duration = end - start
-    
-    # Example: combined score (you can tweak weights)
-    score = max_motion * 0.6 + mean_motion * 0.3 + duration * 0.1
+
+    burstiness = max_motion / (mean_motion + 1e-6)
+
+    score = 0.5 * p90 + 0.3 * burstiness + 0.2 * max_motion
+
     segment_scores.append((start, end, score))
+
 
 # Sort descending: most exciting first
 segment_scores_sorted = sorted(segment_scores, key=lambda x: x[2], reverse=True)
@@ -239,10 +320,34 @@ plt.plot(times, motions_ma, linewidth=2, label="Moving average")
 plt.axhline(threshold, color="red", linestyle="--", label="Threshold")
 
 for start, end in segments_padded:
-    plt.axvspan(start, end, color="green", alpha=0.2)  # shaded region
+    plt.axvspan(start, end, color="green", alpha=0.2)
 
 plt.xlabel("Time (seconds)")
 plt.ylabel("Motion intensity")
-plt.title("Threshold Crossing with Pre/Post Padding")
+plt.title("Detected Volleys with Threshold")
+plt.legend()
+plt.show()
+
+# Variance diagnostics
+variances = [v for t, m, v in motion_with_variance]
+print(f"\nVariance stats:")
+print(f"  Min: {np.min(variances):.2f}")
+print(f"  25th percentile: {np.percentile(variances, 25):.2f}")
+print(f"  Median: {np.median(variances):.2f}")
+print(f"  75th percentile: {np.percentile(variances, 75):.2f}")
+print(f"  90th percentile: {np.percentile(variances, 90):.2f}")
+print(f"  Max: {np.max(variances):.2f}")
+
+plt.figure(figsize=(12, 5))
+plt.plot([t for t, m, v in motion_with_variance], variances, linewidth=2)
+plt.axhline(
+    VARIANCE_THRESHOLD,
+    color="red",
+    linestyle="--",
+    label=f"Variance Threshold = {VARIANCE_THRESHOLD}",
+)
+plt.xlabel("Time (seconds)")
+plt.ylabel("Motion Variance")
+plt.title("Motion Variance Over Time")
 plt.legend()
 plt.show()
