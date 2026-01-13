@@ -3,6 +3,7 @@ from flask_limiter import Limiter
 from flask_limiter.errors import RateLimitExceeded
 from flask_limiter.util import get_remote_address
 from flask_cors import CORS
+from werkzeug.middleware.proxy_fix import ProxyFix
 import tempfile
 import os
 
@@ -10,17 +11,17 @@ from video_utils import process_video, format_time
 
 app = Flask(__name__)
 CORS(app)
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1)
+
 
 redis_url = os.environ.get("REDIS_URL")
-if not redis_url:
-    raise RuntimeError("REDIS_URL is not set! Did you link Redis in Railway?")
 
 # Rate limiting configuration
 limiter = Limiter(
     get_remote_address, # uses client IP
     app=app,
-    storage_uri=os.environ.get("REDIS_URL", "redis://localhost:6379"),
-    default_limits=["50 per day", "5 per hour"]
+    storage_uri=redis_url if redis_url else "memory://",
+    default_limits=["100 per day", "10 per hour"] 
 )
 
 # Flask confi for max upload size
@@ -30,7 +31,7 @@ ALLOWED_EXTENSIONS = {'.mp4', '.mov', '.avi', '.mkv'}
 MAX_FILE_SIZE = 3 * 1024 * 1024 * 1024  # 3GB
 
 @app.route("/upload", methods=["POST"])
-@limiter.limit("4 per day")
+@limiter.limit("3 per day")
 def upload_video():
     if "video" not in request.files:
         return jsonify({"error": "No video file provided"}), 400
@@ -91,7 +92,7 @@ def health_check():
 def handle_rate_limit(e):
     return jsonify({
         "error": "Upload limit reached",
-        "message": "You can only upload 2 videos per day. Try again tomorrow."
+        "message": "You can only upload 3 videos per day. Try again tomorrow."
     }), 429
 
 if __name__ == "__main__":
