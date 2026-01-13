@@ -76,6 +76,10 @@ def calculate_motion_variance(motion_scores, window_seconds=2.0):
 def process_video(video_path="/Users/jesaiahprayor/Downloads/dboy_migz.mp4"):
     """
     Process a video to detect segments of high activity ("volleys") based on motion analysis.
+    Args:
+        video_path (str): Path to the input video file.
+    Returns:
+        list of (start_time, end_time, score) tuples for detected volleys.
     """
 
     # Make sure the video file exists before continuing

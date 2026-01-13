@@ -33,6 +33,19 @@ MAX_FILE_SIZE = 3 * 1024 * 1024 * 1024  # 3GB
 @app.route("/upload", methods=["POST"])
 @limiter.limit("3 per day")
 def upload_video():
+    """"
+    Endpoint to upload video and get highlight segments
+    args: None (expects 'video' file in form-data)
+    returns: JSON with highlight segments
+    [{
+        'start': start,
+        'end': end,
+        'score': score,
+        'formatted_start': format_time(start),
+        'formatted_end': format_time(end)
+    }]
+
+    """
     if "video" not in request.files:
         return jsonify({"error": "No video file provided"}), 400
 
