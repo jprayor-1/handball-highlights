@@ -4,3 +4,5 @@ matplotlib==3.9.2
 numpy==1.26.3
 opencv-python-headless==4.10.0.84
 gunicorn==21.2.0
+Flask-Limiter==2.10.3
+redis==5.3.1

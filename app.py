@@ -1,4 +1,7 @@
 from flask import Flask, request, jsonify
+from flask_limiter import Limiter
+from flask_limiter.errors import RateLimitExceeded
+from flask_limiter.util import get_remote_address
 from flask_cors import CORS
 import tempfile
 import os
@@ -8,6 +11,18 @@ from video_utils import process_video, format_time
 app = Flask(__name__)
 CORS(app)
 
+redis_url = os.environ.get("REDIS_URL")
+if not redis_url:
+    raise RuntimeError("REDIS_URL is not set! Did you link Redis in Railway?")
+
+# Rate limiting configuration
+limiter = Limiter(
+    get_remote_address, # uses client IP
+    app=app,
+    storage_uri=os.environ.get("REDIS_URL", "redis://localhost:6379"),
+    default_limits=["50 per day", "5 per hour"]
+)
+
 # Flask confi for max upload size
 app.config['MAX_CONTENT_LENGTH'] = 3 * 1024 * 1024 * 1024  # 3GB
 
@@ -15,6 +30,7 @@ ALLOWED_EXTENSIONS = {'.mp4', '.mov', '.avi', '.mkv'}
 MAX_FILE_SIZE = 3 * 1024 * 1024 * 1024  # 3GB
 
 @app.route("/upload", methods=["POST"])
+@limiter.limit("4 per day")
 def upload_video():
     if "video" not in request.files:
         return jsonify({"error": "No video file provided"}), 400
@@ -65,10 +81,18 @@ def upload_video():
 def request_entity_too_large(error):
     return jsonify({"error": "File too large. Maximum upload size is 3GB"}), 413
 
+@limiter.exempt
 @app.route("/health", methods=["GET"])
 def health_check():
     """Simple health check endpoint"""
     return jsonify({"status": "ok"})
+
+@app.errorhandler(RateLimitExceeded)
+def handle_rate_limit(e):
+    return jsonify({
+        "error": "Upload limit reached",
+        "message": "You can only upload 2 videos per day. Try again tomorrow."
+    }), 429
 
 if __name__ == "__main__":
     # Railway will use gunicorn, this is just for local dev
