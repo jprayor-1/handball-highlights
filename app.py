@@ -6,6 +6,9 @@ from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
 import tempfile
 import os
+import time
+import logging
+
 
 from video_utils import process_video, format_time
 
@@ -13,6 +16,10 @@ app = Flask(__name__)
 CORS(app)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1)
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(message)s",
+)
 
 redis_url = os.environ.get("REDIS_URL")
 
@@ -89,11 +96,51 @@ def upload_video():
                 ]
             })
         except Exception as e:
+            logging.exception({
+                "event": "upload_failed",
+                "error": str(e),
+                "filename": file.filename,
+                "size": file_size,
+                "ip": request.remote_addr,
+            })
             return jsonify({"error": str(e)}), 500
 
 @app.errorhandler(413)
 def request_entity_too_large(error):
     return jsonify({"error": "File too large. Maximum upload size is 3GB"}), 413
+
+@app.before_request
+def log_request_start():
+    request.start_time = time.time()
+    logging.info({
+        "event": "request_start",
+        "method": request.method,
+        "path": request.path,
+        "ip": request.remote_addr,
+        "content_length": request.content_length,
+        "user_agent": request.headers.get("User-Agent"),
+    })
+
+@app.route("/", methods=["GET"])
+def root():
+    return jsonify({"message": "Handball Highlights API"}), 200
+
+
+@app.after_request
+def log_request_end(response):
+    duration = round((time.time() - request.start_time) * 1000, 2)
+
+    logging.info({
+        "method": request.method,
+        "path": request.path,
+        "status": response.status_code,
+        "duration_ms": duration,
+        "ip": request.remote_addr,
+        "user_agent": request.headers.get("User-Agent"),
+        "content_length": request.content_length,
+    })
+
+    return response
 
 @limiter.exempt
 @app.route("/health", methods=["GET"])
