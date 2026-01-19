@@ -15,7 +15,7 @@ from video_handle import upload_file, delete_file, generate_presigned_upload_url
 
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}})
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1)
 
 logging.basicConfig(
