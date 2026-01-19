@@ -8,9 +8,11 @@ import tempfile
 import os
 import time
 import logging
-
+import uuid
 
 from video_utils import process_video, format_time
+from video_handle import upload_file, delete_file, generate_presigned_upload_url
+
 
 app = Flask(__name__)
 CORS(app)
@@ -35,7 +37,14 @@ limiter = Limiter(
 app.config['MAX_CONTENT_LENGTH'] = 3 * 1024 * 1024 * 1024  # 3GB
 
 ALLOWED_EXTENSIONS = {'.mp4', '.mov', '.avi', '.mkv'}
-MAX_FILE_SIZE = 3 * 1024 * 1024 * 1024  # 3GB
+ALLOWED_MIME_TYPES = {
+    'video/mp4',
+    'video/quicktime',
+    'video/x-msvideo',
+    'video/x-matroska'
+}
+MAX_FILE_SIZE = 1 * 1024 * 1024 * 1024  # 1GB
+MAX_HIGHLIGHT_SIZE = 200 * 1024 * 1024  # 200 MB
 
 @app.route("/upload", methods=["POST"])
 @limiter.limit("3 per day")
@@ -72,7 +81,7 @@ def upload_video():
     file.seek(0)  # Reset pointer
 
     if file_size > MAX_FILE_SIZE:
-        return jsonify({"error": "File too large (max 3GB)"}), 413
+        return jsonify({"error": "File too large (max 1GB)"}), 413
 
     # Create temporary file that auto-deletes
     with tempfile.NamedTemporaryFile(delete=True, suffix=ext) as temp_video:
@@ -120,6 +129,127 @@ def log_request_start():
         "content_length": request.content_length,
         "user_agent": request.headers.get("User-Agent"),
     })
+
+@app.route("/api/uploads", methods=["POST"])
+def create_upload():
+    """
+    Upload a short highlight video file to R2
+    Expects form-data with 'video' and 'filesize' in file, 
+    Returns JSON with upload details
+    """
+
+    file = request.files.get("video")
+    size = request.files.get("filesize")
+    
+    if not file:
+        return jsonify({"error": "No video file provided"}), 400
+    
+    if size > MAX_HIGHLIGHT_SIZE:
+        return jsonify({"error": "Highlight file too large (max 200MB)"}), 413
+
+    if file.filename == "":
+        return jsonify({"error": "Empty filename"}), 400
+
+    # Check file extension
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        return jsonify({"error": f"Invalid file type. Allowed: {ALLOWED_EXTENSIONS}"}), 400
+    
+    filename = file.filename
+    unique_key = f"highlights/{uuid.uuid4()}-{filename}"
+
+    try:
+        # Create temporary file
+        with tempfile.NamedTemporaryFile(delete=True, suffix=ext) as temp_video:
+            file.save(temp_video.name)
+
+            # Upload to R2
+            upload_response = upload_file(
+                file_path=temp_video.name,
+                key=unique_key,
+                content_type=file.mimetype
+            )
+        return jsonify(upload_response), 201
+    except Exception as e:
+        logging.exception({
+            "event": "upload_to_r2_failed",
+            "error": str(e),
+            "filename": unique_key,
+            "ip": request.remote_addr,
+        })
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/uploads", methods=["DELETE"])
+def delete_upload():
+    """
+    Delete a file from R2.
+    Expects JSON payload: { "key": "highlights/uuid-filename.mp4" }
+    """
+    data = request.get_json()
+
+    key = data.get("key") if data else None
+
+    if not key:
+        return jsonify({"error": "Missing 'key' in request"}), 400
+
+    try:
+        delete_file(key)
+        return jsonify({"deleted": key}), 200
+    except Exception as e:
+        logging.exception({
+            "event": "delete_from_r2_failed",
+            "error": str(e),
+            "key": key,
+            "ip": request.remote_addr,
+        })
+        return jsonify({"error": "Failed to delete file"}), 500
+
+
+@app.route("/api/uploads/presign", methods=["POST"])
+def presign_upload():
+    """
+    Generate a presigned URL for uploading a long video to R2
+    Expects JSON body with:
+    {
+        "filename": "File name of video to upload",
+        "filesize": "size of file in bytes",
+        "content_type": "video/mp4"
+    }
+    """
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Missing 'Video' in request body"}), 400
+
+    filename = data.get("filename")
+    filesize = data.get("filesize")
+    content_type = data.get("content_type")
+
+    if not filename or not filesize or not content_type:
+        return jsonify({"error": "Missing required fields: filename, filesize, content_type"}), 400
+    
+    if not filesize or int(filesize) > MAX_FILE_SIZE:
+        return jsonify({"error": "File too large (max 1GB)"}), 413
+
+    if not content_type or content_type not in ALLOWED_MIME_TYPES:
+        return jsonify({"error": f"Invalid content type. Allowed: {ALLOWED_MIME_TYPES}"}), 400
+
+    # ensures uniqueness in key upload path
+    key = f"uploads/raw/{uuid.uuid4()}_{filename}"
+    try:
+        url = generate_presigned_upload_url(key, content_type)
+        return jsonify({"key": key, "url": url}), 200
+    except Exception as e:
+        logging.exception({
+            "event": "presign_failed",
+            "error": str(e),
+            "key": key,
+            "ip": request.remote_addr,
+        })
+        return jsonify({"error": str(e)}), 500
+
+
 
 @app.route("/", methods=["GET"])
 def root():
