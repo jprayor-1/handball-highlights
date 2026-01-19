@@ -41,9 +41,6 @@ def generate_presigned_upload_url(
     expiration: int = 3600,
 ):
     r2 = get_r2_client()
-
-    print('JJ LETS FIGURE THIS OUT', os.getenv("R2_BUCKET_NAME"), key, content_type)
-
     url = r2.generate_presigned_url(
         "put_object",
         Params={
@@ -55,3 +52,15 @@ def generate_presigned_upload_url(
     )
 
     return url
+
+def download_file(key: str, destination_path: str):
+    """
+    Stream a file from R2 to local disk.
+    """
+    r2 = get_r2_client()
+    r2.download_file(
+        Bucket=os.getenv("R2_BUCKET_NAME"),
+        Key=key,
+        Filename=destination_path,
+    )
+

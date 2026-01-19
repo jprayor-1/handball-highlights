@@ -11,7 +11,7 @@ import logging
 import uuid
 
 from video_utils import process_video, format_time
-from video_handle import upload_file, delete_file, generate_presigned_upload_url
+from video_handle import upload_file, download_file, delete_file, generate_presigned_upload_url
 
 
 app = Flask(__name__)
@@ -130,54 +130,62 @@ def log_request_start():
         "user_agent": request.headers.get("User-Agent"),
     })
 
-@app.route("/api/uploads", methods=["POST"])
-def create_upload():
+@app.route("/api/process_video", methods=["POST"])
+def process_video_from_r2():
     """
-    Upload a short highlight video file to R2
-    Expects form-data with 'video' and 'filesize' in file, 
-    Returns JSON with upload details
+    Process a video already uploaded to R2.
+    Expects JSON body:
+    {
+        "key": "uploads/raw/uuid_filename.mp4"
+    }
     """
 
-    file = request.files.get("video")
-    size = request.files.get("filesize")
-    
-    if not file:
-        return jsonify({"error": "No video file provided"}), 400
-    
-    if size > MAX_HIGHLIGHT_SIZE:
-        return jsonify({"error": "Highlight file too large (max 200MB)"}), 413
+    data = request.get_json()
+    if not data or "key" not in data:
+        return jsonify({"error": "Missing 'key' in request body"}), 400
 
-    if file.filename == "":
-        return jsonify({"error": "Empty filename"}), 400
+    key = data["key"]
 
-    # Check file extension
-    ext = os.path.splitext(file.filename)[1].lower()
+    # Validate extension from key
+    ext = os.path.splitext(key)[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
         return jsonify({"error": f"Invalid file type. Allowed: {ALLOWED_EXTENSIONS}"}), 400
-    
-    filename = file.filename
-    unique_key = f"highlights/{uuid.uuid4()}-{filename}"
 
     try:
-        # Create temporary file
+        # Create temp file for processing
         with tempfile.NamedTemporaryFile(delete=True, suffix=ext) as temp_video:
-            file.save(temp_video.name)
-
-            # Upload to R2
-            upload_response = upload_file(
-                file_path=temp_video.name,
-                key=unique_key,
-                content_type=file.mimetype
+            # Download file from R2 into temp file
+            download_file(
+                key=key,
+                destination_path=temp_video.name
             )
-        return jsonify(upload_response), 201
+
+            # Process video
+            highlight_segments = process_video(temp_video.name)
+
+            return jsonify({
+                "key": key,
+                "highlights": [
+                    {
+                        "start": start,
+                        "end": end,
+                        "score": score,
+                        "formatted_start": format_time(start),
+                        "formatted_end": format_time(end),
+                    }
+                    for start, end, score in highlight_segments
+                ]
+            }), 200
+
     except Exception as e:
         logging.exception({
-            "event": "upload_to_r2_failed",
+            "event": "process_video_failed",
             "error": str(e),
-            "filename": unique_key,
+            "key": key,
             "ip": request.remote_addr,
         })
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Failed to process video"}), 500
+
 
 
 @app.route("/api/uploads", methods=["DELETE"])
