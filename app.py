@@ -96,11 +96,7 @@ def upload_video():
             # Now you can pass this path to OpenCV
             highlight_segments = process_video(temp_video.name)
 
-            return jsonify(
-                {
-                    "highlights": highlight_segments
-                }
-            )
+            return jsonify({"highlights": highlight_segments})
         except Exception as e:
             logging.exception(
                 {
@@ -168,21 +164,7 @@ def process_video_from_r2():
             highlight_segments = process_video(temp_video.name)
 
             return (
-                jsonify(
-                    {
-                        "key": key,
-                        "highlights": [
-                            {
-                                "start": start,
-                                "end": end,
-                                "score": score,
-                                "formatted_start": format_time(start),
-                                "formatted_end": format_time(end),
-                            }
-                            for start, end, score in highlight_segments
-                        ],
-                    }
-                ),
+                jsonify({"key": key, "highlights": highlight_segments}),
                 200,
             )
 
