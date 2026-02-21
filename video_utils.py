@@ -2,6 +2,7 @@ import cv2  # OpenCV for video processing
 import numpy as np  # Numerical operations
 import os  # File system checks
 import matplotlib.pyplot as plt  # Visualization
+import uuid
 
 
 def format_time(seconds):
@@ -311,14 +312,25 @@ def process_video(video_path="/Users/jesaiahprayor/Downloads/dboy_migz.mp4"):
 
 
     # Sort descending: most exciting first
-    segment_scores_sorted = sorted(segment_scores, key=lambda x: x[2], reverse=True)
+    segment_scores_sorted = sorted(segment_scores, key=lambda x: x[2])
+    highlights = []
+    for start, end, score in segment_scores_sorted:
+        highlights.append({
+            "id": str(uuid.uuid4()),
+            "start": start,
+            "end": end,
+            "score": score
+        })
+    
+    return highlights
 
-    print("Top volleys by excitement:")
-    for i, (start, end, score) in enumerate(segment_scores_sorted, 1):
-        print(f"{i}: {format_time(start)} → {format_time(end)}, score={score:.2f}")
 
-    return segment_scores_sorted
+    # print("Top volleys by excitement:")
+    # for i, (start, end, score) in enumerate(segment_scores_sorted, 1):
+    #     print(f"{i}: {format_time(start)} → {format_time(end)}, score={score:.2f}")
 
+
+    # Diagram for all handball highlights, Helpful for debuggin
     # plt.figure(figsize=(12, 5))
     # plt.plot(times, motions_ma, linewidth=2, label="Moving average")
     # plt.axhline(threshold, color="red", linestyle="--", label="Threshold")
