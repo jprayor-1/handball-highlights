@@ -35,6 +35,7 @@ def moving_average(signal, window_size):
     # Convolve signal with window to smooth it
     return np.convolve(signal, window, mode="same")
 
+
 def calculate_motion_variance(motion_scores, window_seconds=2.0):
     """
     Calculate variance of motion over a rolling time window.
@@ -73,6 +74,7 @@ def calculate_motion_variance(motion_scores, window_seconds=2.0):
         motion_with_variance.append((t, motion, variance))
 
     return motion_with_variance
+
 
 def process_video(video_path="/Users/jesaiahprayor/Downloads/dboy_migz.mp4"):
     """
@@ -163,7 +165,6 @@ def process_video(video_path="/Users/jesaiahprayor/Downloads/dboy_migz.mp4"):
         # Move to the next frame
         frame_idx += 1
 
-
     # Release the video file
     cap.release()
 
@@ -191,11 +192,9 @@ def process_video(video_path="/Users/jesaiahprayor/Downloads/dboy_migz.mp4"):
             times.append(t)
             motions.append(motion * 0.1)  # Heavily dampened
 
-
     MA_WINDOW = 5
     # Apply moving average smoothing
     motions_ma = moving_average(motions, MA_WINDOW)
-
 
     median = np.median(motions_ma)
     mad = np.median(np.abs(motions_ma - median))
@@ -310,25 +309,19 @@ def process_video(video_path="/Users/jesaiahprayor/Downloads/dboy_migz.mp4"):
 
         segment_scores.append((start, end, score))
 
-
     # Sort descending: most exciting first
     segment_scores_sorted = sorted(segment_scores, key=lambda x: x[2])
     highlights = []
     for start, end, score in segment_scores_sorted:
-        highlights.append({
-            "id": str(uuid.uuid4()),
-            "start": start,
-            "end": end,
-            "score": score
-        })
-    
-    return highlights
+        highlights.append(
+            {"id": str(uuid.uuid4()), "start": start, "end": end, "score": score}
+        )
 
+    return highlights
 
     # print("Top volleys by excitement:")
     # for i, (start, end, score) in enumerate(segment_scores_sorted, 1):
     #     print(f"{i}: {format_time(start)} → {format_time(end)}, score={score:.2f}")
-
 
     # Diagram for all handball highlights, Helpful for debuggin
     # plt.figure(figsize=(12, 5))
