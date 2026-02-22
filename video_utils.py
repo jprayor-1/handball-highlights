@@ -97,7 +97,7 @@ def process_video(video_path="/Users/jesaiahprayor/Downloads/dboy_migz.mp4"):
 
     # Decide how often to sample frames
     # Example: fps // 3 means ~3 frames per second
-    sample_rate = max(1, int(fps // 2))
+    sample_rate = int(fps)
 
     # Store the previous frame in grayscale for comparison
     prev_gray = None
@@ -116,6 +116,9 @@ def process_video(video_path="/Users/jesaiahprayor/Downloads/dboy_migz.mp4"):
         # If no frame is returned, we reached the end of the video
         if not ret:
             break
+
+        # ✅ Resize BEFORE any processing
+        frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
 
         # Only process every Nth frame (frame skipping)
         if frame_idx % sample_rate == 0:
