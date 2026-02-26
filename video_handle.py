@@ -4,26 +4,22 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-def upload_file(
-    file_path: str,
-    key: str,
-    content_type: str = "video/mp4"
-):
+
+def upload_file(file_path: str, key: str, content_type: str = "video/mp4"):
     r2 = get_r2_client()
 
     r2.upload_file(
         Filename=file_path,
         Bucket=os.getenv("R2_BUCKET_NAME"),
         Key=key,
-        ExtraArgs={
-            "ContentType": content_type
-        }
+        ExtraArgs={"ContentType": content_type},
     )
 
     return {
         "bucket": os.getenv("R2_BUCKET_NAME"),
         "key": key,
     }
+
 
 def delete_file(key: str):
     r2 = get_r2_client()
@@ -34,6 +30,7 @@ def delete_file(key: str):
     )
 
     return {"deleted": key}
+
 
 def generate_presigned_upload_url(
     key: str,
@@ -53,6 +50,19 @@ def generate_presigned_upload_url(
 
     return url
 
+
+def upload_clip(file_path, object_name):
+    r2 = get_r2_client()
+    r2.upload_file(
+        file_path,
+        "your-bucket-name",
+        object_name,
+        ExtraArgs={"ContentType": "video/mp4"},
+    )
+
+    return f"https://<your-public-url>/{object_name}"
+
+
 def download_file(key: str, destination_path: str):
     """
     Stream a file from R2 to local disk.
@@ -63,4 +73,3 @@ def download_file(key: str, destination_path: str):
         Key=key,
         Filename=destination_path,
     )
-

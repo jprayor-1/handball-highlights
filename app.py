@@ -10,7 +10,9 @@ import time
 import logging
 import uuid
 
-from video_utils import process_video, format_time
+
+from clip_video import clip_all_highlights_parallel
+from video_utils import process_video
 from video_handle import download_file, delete_file, generate_presigned_upload_url
 
 
@@ -47,6 +49,7 @@ MAX_FILE_SIZE = 1 * 1024 * 1024 * 1024  # 1GB
 MAX_HIGHLIGHT_SIZE = 200 * 1024 * 1024  # 200 MB
 
 
+# Test route, uploads video directly to the server
 @app.route("/upload", methods=["POST"])
 @limiter.limit("3 per day")
 def upload_video():
@@ -163,8 +166,13 @@ def process_video_from_r2():
             # Process video
             highlight_segments = process_video(temp_video.name)
 
+            # Create highlight clips
+            clipped_highlights = clip_all_highlights_parallel(
+                temp_video.name, highlight_segments
+            )
+
             return (
-                jsonify({"key": key, "highlights": highlight_segments}),
+                jsonify({"key": key, "highlights": clipped_highlights}),
                 200,
             )
 
