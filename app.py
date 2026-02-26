@@ -163,8 +163,12 @@ def process_video_from_r2():
             # Download file from R2 into temp file
             download_file(key=key, destination_path=temp_video.name)
 
+            print("JJ ABout to get highlight")
+
             # Process video
             highlight_segments = process_video(temp_video.name)
+
+            print("JJ ABout to get clip videos")
 
             # Create highlight clips
             clipped_highlights = clip_all_highlights_parallel(
