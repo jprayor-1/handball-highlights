@@ -12,7 +12,7 @@ import uuid
 import shutil
 
 
-from clip_video import clip_all_highlights_parallel
+from clip_video import clip_and_upload_pipelined
 from video_utils import process_video
 from video_handle import download_file, delete_file, generate_presigned_upload_url
 
@@ -187,7 +187,7 @@ def process_video_from_r2():
             top_20_highlights = limited_highlights[:20]
 
             # Create highlight clips
-            clipped_highlights = clip_all_highlights_parallel(
+            clipped_highlights = clip_and_upload_pipelined(
                 temp_video.name, top_20_highlights
             )
 
