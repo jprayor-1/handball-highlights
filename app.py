@@ -9,6 +9,7 @@ import os
 import time
 import logging
 import uuid
+import shutil
 
 
 from clip_video import clip_all_highlights_parallel
@@ -24,6 +25,8 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(message)s",
 )
+
+logging.info({"ffmpeg_path": shutil.which("ffmpeg")})
 
 redis_url = os.environ.get("REDIS_URL")
 
@@ -292,19 +295,7 @@ def root():
 @app.after_request
 def log_request_end(response):
     start_time = getattr(request, "start_time", None)
-
-    if start_time is not None:
-        duration = round((time.time() - start_time) * 1000, 2)
-        logging.info(
-            {
-                "event": "request_end",
-                "method": request.method,
-                "path": request.path,
-                "duration_ms": duration,
-            }
-        )
-
-    return response
+    duration = round((time.time() - float(start_time)) * 1000, 2)
 
     logging.info(
         {
