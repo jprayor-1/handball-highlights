@@ -1,9 +1,0 @@
-[phases.setup]
-nixPkgs = ["python311", "gcc", "ffmpeg"]
-
-[phases.install]
-cmds = ["pip install -r requirements.txt"]
-
-[start]
-# ✅ Explicitly add nix store to PATH
-cmd = "export PATH=$PATH:/nix/store/$(ls /nix/store | grep ffmpeg | head -n1)/bin && gunicorn app:app --timeout 600 --workers 2 --bind 0.0.0.0:$PORT"
