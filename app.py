@@ -184,9 +184,11 @@ def process_video_from_r2():
                 hl for hl in highlight_segments if hl["end"] - hl["start"] <= 80
             ]
 
+            top_20_highlights = limited_highlights[:20]
+
             # Create highlight clips
             clipped_highlights = clip_all_highlights_parallel(
-                temp_video.name, limited_highlights
+                temp_video.name, top_20_highlights
             )
 
             logging.info(

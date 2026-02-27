@@ -55,12 +55,12 @@ def upload_clip(file_path, object_name):
     r2 = get_r2_client()
     r2.upload_file(
         file_path,
-        "your-bucket-name",
+        os.getenv("R2_BUCKET_NAME"),
         object_name,
         ExtraArgs={"ContentType": "video/mp4"},
     )
 
-    return f"https://<your-public-url>/{object_name}"
+    return f"https://pub-c14ece83a7684bd0b4dde59409667543.r2.dev/{object_name}"
 
 
 def download_file(key: str, destination_path: str):
