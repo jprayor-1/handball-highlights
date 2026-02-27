@@ -181,7 +181,7 @@ def process_video_from_r2():
 
             # ignore long highlights for faster reel creation
             limited_highlights = [
-                hl for hl in highlight_segments if hl.end - hl.start <= 80
+                hl for hl in highlight_segments if hl["end"] - hl["start"] <= 80
             ]
 
             # Create highlight clips
