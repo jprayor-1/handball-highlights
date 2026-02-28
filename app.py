@@ -302,7 +302,9 @@ def root():
 @app.after_request
 def log_request_end(response):
     start_time = getattr(request, "start_time", None)
-    duration = round((time.time() - float(start_time)) * 1000, 2)
+    duration = None
+    if start_time:
+        duration = round((time.time() - float(start_time)) * 1000, 2)
 
     logging.info(
         {
