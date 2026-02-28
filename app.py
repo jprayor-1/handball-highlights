@@ -35,11 +35,11 @@ limiter = Limiter(
     get_remote_address,  # uses client IP
     app=app,
     storage_uri=redis_url if redis_url else "memory://",
-    default_limits=["100 per day", "10 per hour"],
+    default_limits=["3 per hour", "15 per day"],
 )
 
 # Flask confi for max upload size
-app.config["MAX_CONTENT_LENGTH"] = 3 * 1024 * 1024 * 1024  # 3GB
+app.config["MAX_CONTENT_LENGTH"] = 1 * 1024 * 1024 * 1024  # 3GB
 
 ALLOWED_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv"}
 ALLOWED_MIME_TYPES = {
