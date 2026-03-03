@@ -187,11 +187,12 @@ def get_job_status(job_id):
         return jsonify({"error": "Job not found"}), 404
 
     status = job.get_status()
-    response = {"job_id": job_id, "status": status.value}
+    status_str = status.value if hasattr(status, "value") else status
+    response = {"job_id": job_id, "status": status_str}
 
-    if status.value == "finished":
+    if status_str == "finished":
         response["result"] = job.return_value()
-    elif status.value == "failed":
+    elif status_str == "failed":
         response["error"] = str(job.exc_info) if job.exc_info else "Unknown error"
 
     return jsonify(response), 200
