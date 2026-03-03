@@ -62,6 +62,7 @@ def clip_and_upload_pipelined(input_path, highlights, max_workers=3):
         """Clip video and queue for upload."""
         start = highlight["start"]
         end = highlight["end"]
+        score = highlight["score"]
         duration = end - start
 
         if duration <= 0:
@@ -109,6 +110,7 @@ def clip_and_upload_pipelined(input_path, highlights, max_workers=3):
                 "id": highlight_id,
                 "start": start,
                 "end": end,
+                "score": score,
             }
 
             upload_queue.put((highlight_id, output_file, r2_key, highlight_info))

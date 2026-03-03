@@ -12,9 +12,12 @@ import uuid
 import shutil
 
 
-from clip_video import clip_and_upload_pipelined
+from redis import Redis
+from rq import Queue
+from rq.job import Job, NoSuchJobError
+
 from video_utils import process_video
-from video_handle import download_file, delete_file, generate_presigned_upload_url
+from video_handle import delete_file, generate_presigned_upload_url
 
 
 app = Flask(__name__)
@@ -29,6 +32,13 @@ logging.basicConfig(
 logging.info({"ffmpeg_path": shutil.which("ffmpeg")})
 
 redis_url = os.environ.get("REDIS_URL")
+
+if redis_url:
+    redis_conn = Redis.from_url(redis_url)
+    task_queue = Queue("video", connection=redis_conn, default_timeout=1200)
+else:
+    redis_conn = None
+    task_queue = None
 
 # Rate limiting configuration
 limiter = Limiter(
@@ -139,12 +149,13 @@ def log_request_start():
 @app.route("/api/process_video", methods=["POST"])
 def process_video_from_r2():
     """
-    Process a video already uploaded to R2.
-    Expects JSON body:
-    {
-        "key": "uploads/raw/uuid_filename.mp4"
-    }
+    Enqueue a video processing job for a video already uploaded to R2.
+    Expects JSON body: { "key": "uploads/raw/uuid_filename.mp4" }
+    Returns: { "job_id": "...", "status": "queued" }
+    Poll GET /api/jobs/<job_id> for results.
     """
+    if task_queue is None:
+        return jsonify({"error": "Job queue unavailable: REDIS_URL not configured"}), 503
 
     data = request.get_json()
     if not data or "key" not in data:
@@ -152,64 +163,38 @@ def process_video_from_r2():
 
     key = data["key"]
 
-    # Validate extension from key
     ext = os.path.splitext(key)[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
-        return (
-            jsonify({"error": f"Invalid file type. Allowed: {ALLOWED_EXTENSIONS}"}),
-            400,
-        )
+        return jsonify({"error": f"Invalid file type. Allowed: {ALLOWED_EXTENSIONS}"}), 400
+
+    from tasks import run_video_processing
+    job = task_queue.enqueue(run_video_processing, key, result_ttl=3600, failure_ttl=86400)
+
+    logging.info({"event": "job_queued", "job_id": job.id, "key": key, "ip": request.remote_addr})
+
+    return jsonify({"job_id": job.id, "status": "queued"}), 202
+
+
+@app.route("/api/jobs/<job_id>", methods=["GET"])
+def get_job_status(job_id):
+    """Poll for the status and result of a video processing job."""
+    if redis_conn is None:
+        return jsonify({"error": "Job queue unavailable: REDIS_URL not configured"}), 503
 
     try:
-        # Create temp file for processing
-        with tempfile.NamedTemporaryFile(delete=True, suffix=ext) as temp_video:
-            # Download file from R2 into temp file
-            download_file(key=key, destination_path=temp_video.name)
+        job = Job.fetch(job_id, connection=redis_conn)
+    except NoSuchJobError:
+        return jsonify({"error": "Job not found"}), 404
 
-            logging.info(
-                {
-                    "event": "starting get highlights",
-                }
-            )
+    status = job.get_status()
+    response = {"job_id": job_id, "status": status.value}
 
-            # Process video
-            highlight_segments = process_video(temp_video.name)
+    if status.value == "finished":
+        response["result"] = job.return_value()
+    elif status.value == "failed":
+        response["error"] = str(job.exc_info) if job.exc_info else "Unknown error"
 
-            logging.info(
-                {"event": "list of highlights", "highlights": highlight_segments}
-            )
-
-            # ignore long highlights for faster reel creation
-            limited_highlights = [
-                hl for hl in highlight_segments if hl["end"] - hl["start"] <= 80
-            ]
-
-            top_20_highlights = limited_highlights[:20]
-
-            # Create highlight clips
-            clipped_highlights = clip_and_upload_pipelined(
-                temp_video.name, top_20_highlights
-            )
-
-            logging.info(
-                {"event": "clipped highlights", "highlights": clipped_highlights}
-            )
-
-            return (
-                jsonify({"key": key, "highlights": clipped_highlights}),
-                200,
-            )
-
-    except Exception as e:
-        logging.exception(
-            {
-                "event": "process_video_failed",
-                "error": str(e),
-                "key": key,
-                "ip": request.remote_addr,
-            }
-        )
-        return jsonify({"error": "Failed to process video"}), 500
+    return jsonify(response), 200
 
 
 @app.route("/api/uploads", methods=["DELETE"])

@@ -310,7 +310,7 @@ def process_video(video_path="/Users/jesaiahprayor/Downloads/dboy_migz.mp4"):
         segment_scores.append((start, end, score))
 
     # Sort descending: most exciting first
-    segment_scores_sorted = sorted(segment_scores, key=lambda x: x[2])
+    segment_scores_sorted = sorted(segment_scores, key=lambda x: x[2], reverse=True)
     highlights = []
     for start, end, score in segment_scores_sorted:
         highlights.append(
