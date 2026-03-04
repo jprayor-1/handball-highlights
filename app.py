@@ -197,16 +197,20 @@ def get_job_status(job_id):
     except NoSuchJobError:
         return jsonify({"error": "Job not found"}), 404
 
-    status = job.get_status()
-    status_str = status.value if hasattr(status, "value") else status
-    response = {"job_id": job_id, "status": status_str}
+    try:
+        status = job.get_status()
+        status_str = status.value if hasattr(status, "value") else status
+        response = {"job_id": job_id, "status": status_str}
 
-    if status_str == "finished":
-        response["result"] = job.return_value()
-    elif status_str == "failed":
-        response["error"] = str(job.exc_info) if job.exc_info else "Unknown error"
+        if status_str == "finished":
+            response["result"] = job.return_value()
+        elif status_str == "failed":
+            response["error"] = str(job.exc_info) if job.exc_info else "Unknown error"
 
-    return jsonify(response), 200
+        return jsonify(response), 200
+    except Exception as e:
+        logging.exception({"event": "get_job_status_failed", "job_id": job_id, "error": str(e)})
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/uploads", methods=["DELETE"])
@@ -345,6 +349,7 @@ def not_found(e):
 
 @app.errorhandler(500)
 def internal_error(e):
+    logging.exception({"event": "unhandled_500", "error": str(e)})
     return jsonify({"error": "Internal server error"}), 500
 
 
