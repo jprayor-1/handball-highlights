@@ -45,7 +45,7 @@ limiter = Limiter(
     get_remote_address,  # uses client IP
     app=app,
     storage_uri=redis_url if redis_url else "memory://",
-    default_limits=["3 per hour", "15 per day"],
+    default_limits=["3 per day"],
 )
 
 # Flask confi for max upload size
@@ -147,6 +147,7 @@ def log_request_start():
 
 
 @app.route("/api/process_video", methods=["POST"])
+@limiter.limit("3 per day")
 def process_video_from_r2():
     """
     Enqueue a video processing job for a video already uploaded to R2.
@@ -164,6 +165,7 @@ def process_video_from_r2():
         return jsonify({"error": "Missing 'key' in request body"}), 400
 
     key = data["key"]
+    email = data.get("email") or None
 
     ext = os.path.splitext(key)[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
@@ -174,7 +176,7 @@ def process_video_from_r2():
     from tasks import run_video_processing
 
     job = task_queue.enqueue(
-        run_video_processing, key, result_ttl=3600, failure_ttl=86400
+        run_video_processing, key, email, result_ttl=3600, failure_ttl=86400
     )
 
     logging.info(

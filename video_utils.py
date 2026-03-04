@@ -110,18 +110,16 @@ def process_video(video_path="/Users/jesaiahprayor/Downloads/dboy_migz.mp4"):
 
     # Loop through the video frame by frame
     while True:
-        # Read the next frame from the video
-        ret, frame = cap.read()
-
-        # If no frame is returned, we reached the end of the video
-        if not ret:
-            break
-
-        # Only process every Nth frame (frame skipping)
         if frame_idx % sample_rate == 0:
+            # Only decode frames we actually need; use grab() for the rest
+            ret, frame = cap.read()
+            if not ret:
+                break
 
-            # Convert the frame from color (BGR) to grayscale
+            # Convert to grayscale and resize to 320x180 — 16x fewer pixels,
+            # same motion signal quality for volley detection
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            gray = cv2.resize(gray, (320, 180))
 
             # Only compute motion if we have a previous frame
             if prev_gray is not None:
@@ -161,6 +159,10 @@ def process_video(video_path="/Users/jesaiahprayor/Downloads/dboy_migz.mp4"):
 
             # Update previous frame to current frame
             prev_gray = gray
+        else:
+            # Advance position without decoding
+            if not cap.grab():
+                break
 
         # Move to the next frame
         frame_idx += 1

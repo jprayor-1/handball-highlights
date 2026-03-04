@@ -6,9 +6,9 @@ import tempfile
 
 logger = logging.getLogger(__name__)
 
-TARGET_WIDTH = 1920
-TARGET_HEIGHT = 1080
-TARGET_BITRATE_KBPS = 4000  # compress if above this
+TARGET_WIDTH = 1280
+TARGET_HEIGHT = 720
+TARGET_BITRATE_KBPS = 2000  # compress if above this
 TARGET_CRF = 23
 
 
@@ -64,7 +64,7 @@ def needs_compression(stream: dict) -> bool:
 
 
 def _run_ffmpeg_compress(input_path: str, output_path: str) -> None:
-    """Run ffmpeg to compress video to 1080p H.264."""
+    """Run ffmpeg to compress video to 720p H.264."""
     scale_filter = (
         f"scale='min({TARGET_WIDTH},iw)':'min({TARGET_HEIGHT},ih)'"
         ":force_original_aspect_ratio=decrease"
