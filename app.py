@@ -151,11 +151,13 @@ def process_video_from_r2():
     """
     Enqueue a video processing job for a video already uploaded to R2.
     Expects JSON body: { "key": "uploads/raw/uuid_filename.mp4" }
-    Returns: { "job_id": "...", "status": "queued" }
+    Returns: { "job_id": "... ", "status": "queued" }
     Poll GET /api/jobs/<job_id> for results.
     """
     if task_queue is None:
-        return jsonify({"error": "Job queue unavailable: REDIS_URL not configured"}), 503
+        return jsonify(
+            {"error": "Job queue unavailable: REDIS_URL not configured"}
+        ), 503
 
     data = request.get_json()
     if not data or "key" not in data:
@@ -165,12 +167,19 @@ def process_video_from_r2():
 
     ext = os.path.splitext(key)[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
-        return jsonify({"error": f"Invalid file type. Allowed: {ALLOWED_EXTENSIONS}"}), 400
+        return jsonify(
+            {"error": f"Invalid file type. Allowed: {ALLOWED_EXTENSIONS}"}
+        ), 400
 
     from tasks import run_video_processing
-    job = task_queue.enqueue(run_video_processing, key, result_ttl=3600, failure_ttl=86400)
 
-    logging.info({"event": "job_queued", "job_id": job.id, "key": key, "ip": request.remote_addr})
+    job = task_queue.enqueue(
+        run_video_processing, key, result_ttl=3600, failure_ttl=86400
+    )
+
+    logging.info(
+        {"event": "job_queued", "job_id": job.id, "key": key, "ip": request.remote_addr}
+    )
 
     return jsonify({"job_id": job.id, "status": "queued"}), 202
 
@@ -179,7 +188,9 @@ def process_video_from_r2():
 def get_job_status(job_id):
     """Poll for the status and result of a video processing job."""
     if redis_conn is None:
-        return jsonify({"error": "Job queue unavailable: REDIS_URL not configured"}), 503
+        return jsonify(
+            {"error": "Job queue unavailable: REDIS_URL not configured"}
+        ), 503
 
     try:
         job = Job.fetch(job_id, connection=redis_conn)
