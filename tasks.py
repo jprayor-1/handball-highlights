@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 ALLOWED_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv"}
 
 
-def run_video_processing(key: str, email: str | None = None) -> dict:
+def run_video_processing(key: str, email: str | None = None, game_type: str = "singles") -> dict:
     ext = os.path.splitext(key)[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise ValueError(f"Invalid file type: {ext}")
@@ -26,7 +26,7 @@ def run_video_processing(key: str, email: str | None = None) -> dict:
             logger.info({"event": "starting_get_highlights", "key": key})
 
             try:
-                highlight_segments = process_video(video_path)
+                highlight_segments = process_video(video_path, game_type=game_type)
                 limited_highlights = [
                     hl for hl in highlight_segments if hl["end"] - hl["start"] <= 80
                 ]

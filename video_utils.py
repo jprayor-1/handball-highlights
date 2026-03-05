@@ -3,6 +3,39 @@ import numpy as np  # Numerical operations
 import os  # File system checks
 import matplotlib.pyplot as plt  # Visualization
 import uuid
+from dataclasses import dataclass
+
+
+@dataclass
+class VideoConfig:
+    threshold_percentile: int
+    valley_tolerance: float
+    variance_threshold: float
+    ratio_threshold: float
+    min_event_seconds: int
+    ma_window: int
+    spike_strength: int
+
+
+SINGLES_CONFIG = VideoConfig(
+    threshold_percentile=19,
+    valley_tolerance=1.0,
+    variance_threshold=50.0,
+    ratio_threshold=0.7,
+    min_event_seconds=11,
+    ma_window=5,
+    spike_strength=3,
+)
+
+DOUBLES_CONFIG = VideoConfig(
+    threshold_percentile=25,  # more bodies = more baseline motion, raise threshold
+    valley_tolerance=1.5,  # doubles rallies have more brief pauses
+    variance_threshold=40.0,  # lower bar — motion is spread across more players
+    ratio_threshold=0.6,  # slightly more edge motion acceptable
+    min_event_seconds=11,
+    ma_window=5,
+    spike_strength=3,
+)
 
 
 def format_time(seconds):
@@ -76,14 +109,21 @@ def calculate_motion_variance(motion_scores, window_seconds=2.0):
     return motion_with_variance
 
 
-def process_video(video_path="/Users/jesaiahprayor/Downloads/dboy_migz.mp4"):
+def process_video(
+    video_path="/Users/jesaiahprayor/Downloads/dboy_migz.mp4",
+    config: VideoConfig = SINGLES_CONFIG,
+    game_type: str = "singles",
+):
     """
     Process a video to detect segments of high activity ("volleys") based on motion analysis.
     Args:
         video_path (str): Path to the input video file.
+        config (VideoConfig): Tuning parameters — use SINGLES_CONFIG or DOUBLES_CONFIG.
+        game_type (str): "singles" or "doubles". Overrides config if provided.
     Returns:
-        list of (start_time, end_time, score) tuples for detected volleys.
+        list of dicts with highlight segments.
     """
+    config = DOUBLES_CONFIG if game_type == "doubles" else SINGLES_CONFIG
 
     # Make sure the video file exists before continuing
     if not os.path.exists(video_path):
@@ -177,16 +217,13 @@ def process_video(video_path="/Users/jesaiahprayor/Downloads/dboy_migz.mp4"):
     times = []
     motions = []
 
-    RATIO_THRESHOLD = 0.7
-    VARIANCE_THRESHOLD = 50.0
-
     for i, (t, motion, variance) in enumerate(motion_with_variance):
         ratio = motion_scores[i][2]  # Get ratio from original list
 
         # Accept motion if:
         # 1. Ratio is good (center-focused), AND
         # 2. Variance is high (bursty, not steady walking)
-        if ratio > RATIO_THRESHOLD and variance > VARIANCE_THRESHOLD:
+        if ratio > config.ratio_threshold and variance > config.variance_threshold:
             times.append(t)
             motions.append(motion)
         else:
@@ -194,17 +231,14 @@ def process_video(video_path="/Users/jesaiahprayor/Downloads/dboy_migz.mp4"):
             times.append(t)
             motions.append(motion * 0.1)  # Heavily dampened
 
-    MA_WINDOW = 5
     # Apply moving average smoothing
-    motions_ma = moving_average(motions, MA_WINDOW)
+    motions_ma = moving_average(motions, config.ma_window)
 
     median = np.median(motions_ma)
     mad = np.median(np.abs(motions_ma - median))
 
-    # Controls how aggressive spike removal is
-    SPIKE_STRENGTH = 3
     # Motion above this is considered non-gameplay noise
-    spike_threshold = median + SPIKE_STRENGTH * mad
+    spike_threshold = median + config.spike_strength * mad
 
     # Remove spikes from the motion signal
     gameplay_motion = motions_ma.copy()
@@ -217,8 +251,7 @@ def process_video(video_path="/Users/jesaiahprayor/Downloads/dboy_migz.mp4"):
     motions_used = gameplay_motion
 
     # Threshold defining "active play"
-    THRESHOLD_PERCENTILE = 19
-    threshold = np.percentile(motions_used, THRESHOLD_PERCENTILE)
+    threshold = np.percentile(motions_used, config.threshold_percentile)
 
     segments = []
     in_volley = False
@@ -237,16 +270,14 @@ def process_video(video_path="/Users/jesaiahprayor/Downloads/dboy_migz.mp4"):
     POST_PADDING = 1.0  # seconds after volley end
     video_end = times[-1]
 
-    MIN_EVENT_SECONDS = 11  # seconds, minimum length of a valid volley
-
     # Filter out short segments
     segments_filtered = []
     for start, end in segments:
         duration = end - start
-        if duration >= MIN_EVENT_SECONDS:
+        if duration >= config.min_event_seconds:
             segments_filtered.append((start, end))
 
-    VALLEY_TOLERANCE = 2.0  # seconds
+    VALLEY_TOLERANCE = config.valley_tolerance
 
     merged_segments = []
     if segments_filtered:

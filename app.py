@@ -166,6 +166,9 @@ def process_video_from_r2():
 
     key = data["key"]
     email = data.get("email") or None
+    game_type = data.get("game_type", "singles")
+    if game_type not in ("singles", "doubles"):
+        game_type = "singles"
 
     ext = os.path.splitext(key)[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
@@ -176,7 +179,7 @@ def process_video_from_r2():
     from tasks import run_video_processing
 
     job = task_queue.enqueue(
-        run_video_processing, key, email, result_ttl=3600, failure_ttl=86400
+        run_video_processing, key, email, game_type, result_ttl=3600, failure_ttl=86400
     )
 
     logging.info(
