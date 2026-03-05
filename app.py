@@ -33,6 +33,8 @@ logging.info({"ffmpeg_path": shutil.which("ffmpeg")})
 
 redis_url = os.environ.get("REDIS_URL")
 
+EXEMPT_IPS = set(filter(None, os.environ.get("RATE_LIMIT_EXEMPT_IPS", "").split(",")))
+
 if redis_url:
     redis_conn = Redis.from_url(redis_url)
     task_queue = Queue("video", connection=redis_conn, default_timeout=1200)
@@ -41,8 +43,14 @@ else:
     task_queue = None
 
 # Rate limiting configuration
+def get_rate_limit_key():
+    ip = get_remote_address()
+    if ip in EXEMPT_IPS:
+        return None  # Flask-Limiter skips the limit when key is None
+    return ip
+
 limiter = Limiter(
-    get_remote_address,  # uses client IP
+    get_rate_limit_key,
     app=app,
     storage_uri=redis_url if redis_url else "memory://",
     default_limits=["3 per day"],
