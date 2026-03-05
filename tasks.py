@@ -28,7 +28,7 @@ def run_video_processing(key: str, email: str | None = None) -> dict:
             try:
                 highlight_segments = process_video(video_path)
                 limited_highlights = [
-                    hl for hl in highlight_segments if hl["end"] - hl["start"] <= 80
+                    hl for hl in highlight_segments if hl["end"] - hl["start"] <= 160
                 ]
                 top_20_highlights = limited_highlights[:20]
                 clipped_highlights = clip_and_upload_pipelined(
