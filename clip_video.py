@@ -98,9 +98,10 @@ def clip_and_upload_pipelined(input_path, highlights, max_workers=3):
         ]
 
         try:
-            # Clip video
+            # Clip video — allow 5s per second of clip plus 60s overhead for the blur pad filter
+            encode_timeout = int(duration * 5) + 60
             subprocess.run(
-                command, check=True, capture_output=True, text=True, timeout=60
+                command, check=True, capture_output=True, text=True, timeout=encode_timeout
             )
             logger.info(f"✓ Clipped {highlight_id}: {duration:.1f}s")
 

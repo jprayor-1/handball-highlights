@@ -225,7 +225,6 @@ def process_video(video_path="/Users/jesaiahprayor/Downloads/dboy_migz.mp4"):
     volley_start_time = None
 
     for t, motion in zip(times, motions_used):
-
         if not in_volley and motion > threshold:
             in_volley = True
             volley_start_time = t
