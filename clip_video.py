@@ -71,29 +71,29 @@ def clip_and_upload_pipelined(input_path, highlights, max_workers=3):
         highlight_id = highlight.get("id", f"highlight_{index}")
         output_file = f"/tmp/highlight_{highlight_id}.mp4"
 
+        # Blur pad: scale source to fill 1080x1920 bg, blur it,
+        # overlay original video scaled to fit width (1080x607), centered.
+        shorts_filter = (
+            "split[bg][fg];"
+            "[bg]scale=1080:1920:force_original_aspect_ratio=increase,"
+            "crop=1080:1920,boxblur=30:30[blurred];"
+            "[fg]scale=1080:-2[main];"
+            "[blurred][main]overlay=(W-w)/2:(H-h)/2"
+        )
+
         command = [
             "ffmpeg",
             "-y",
-            "-ss",
-            str(start),
-            "-i",
-            input_path,
-            "-t",
-            str(duration),
-            "-vf",
-            "scale=1280:720",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "fast",
-            "-crf",
-            "21",
-            "-c:a",
-            "aac",
-            "-b:a",
-            "128k",
-            "-movflags",
-            "+faststart",
+            "-ss", str(start),
+            "-i", input_path,
+            "-t", str(duration),
+            "-vf", shorts_filter,
+            "-c:v", "libx264",
+            "-preset", "fast",
+            "-crf", "21",
+            "-c:a", "aac",
+            "-b:a", "128k",
+            "-movflags", "+faststart",
             output_file,
         ]
 
