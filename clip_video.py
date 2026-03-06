@@ -71,10 +71,10 @@ def clip_and_upload_pipelined(input_path, highlights, max_workers=3):
         highlight_id = highlight.get("id", f"highlight_{index}")
         output_file = f"/tmp/highlight_{highlight_id}.mp4"
 
-        # Crop to fill 1080x1920, keeping center of frame
+        # Black bars (letterbox): preserve full width, pad top/bottom with black
         shorts_filter = (
-            "scale=1080:1920:force_original_aspect_ratio=increase,"
-            "crop=1080:1920"
+            "scale=1080:1920:force_original_aspect_ratio=decrease,"
+            "pad=1080:1920:(ow-iw)/2:(oh-ih)/2:black"
         )
 
         command = [
