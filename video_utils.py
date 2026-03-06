@@ -29,7 +29,7 @@ SINGLES_CONFIG = VideoConfig(
 
 DOUBLES_CONFIG = VideoConfig(
     threshold_percentile=25,  # more bodies = more baseline motion, raise threshold
-    volley_tolerance=2.1,  # doubles rallies have more brief pauses
+    volley_tolerance=3,  # doubles rallies have more brief pauses
     variance_threshold=40.0,  # lower bar — motion is spread across more players
     ratio_threshold=0.6,  # slightly more edge motion acceptable
     min_event_seconds=11,
@@ -285,7 +285,7 @@ def process_video(
 
         for start, end in segments_filtered[1:]:
             # Check gap between current end and next start
-            if start - current_end <= VALLEY_TOLERANCE:
+            if start - current_end <= VALLEY_TOLERANCE and end - current_start <= 80:
                 # Merge segments
                 current_end = end
             else:
