@@ -9,7 +9,7 @@ from dataclasses import dataclass
 @dataclass
 class VideoConfig:
     threshold_percentile: int
-    valley_tolerance: float
+    volley_tolerance: float
     variance_threshold: float
     ratio_threshold: float
     min_event_seconds: int
@@ -19,7 +19,7 @@ class VideoConfig:
 
 SINGLES_CONFIG = VideoConfig(
     threshold_percentile=19,
-    valley_tolerance=1.0,
+    volley_tolerance=2.0,
     variance_threshold=50.0,
     ratio_threshold=0.7,
     min_event_seconds=11,
@@ -29,7 +29,7 @@ SINGLES_CONFIG = VideoConfig(
 
 DOUBLES_CONFIG = VideoConfig(
     threshold_percentile=25,  # more bodies = more baseline motion, raise threshold
-    valley_tolerance=1.5,  # doubles rallies have more brief pauses
+    volley_tolerance=2.0,  # doubles rallies have more brief pauses
     variance_threshold=40.0,  # lower bar — motion is spread across more players
     ratio_threshold=0.6,  # slightly more edge motion acceptable
     min_event_seconds=11,
@@ -277,7 +277,7 @@ def process_video(
         if duration >= config.min_event_seconds:
             segments_filtered.append((start, end))
 
-    VALLEY_TOLERANCE = config.valley_tolerance
+    VALLEY_TOLERANCE = config.volley_tolerance
 
     merged_segments = []
     if segments_filtered:

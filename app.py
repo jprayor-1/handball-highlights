@@ -34,7 +34,8 @@ logging.info({"rate_limit_storage": "redis" if os.environ.get("REDIS_URL") else 
 
 redis_url = os.environ.get("REDIS_URL")
 
-EXEMPT_IPS = set(filter(None, os.environ.get("RATE_LIMIT_EXEMPT_IPS", "").split(",")))
+EXEMPT_IPS = set(ip.strip() for ip in os.environ.get("RATE_LIMIT_EXEMPT_IPS", "").split(",") if ip.strip())
+logging.info({"rate_limit_exempt_ips": list(EXEMPT_IPS) if EXEMPT_IPS else "none"})
 
 if redis_url:
     redis_conn = Redis.from_url(redis_url)
