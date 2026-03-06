@@ -71,14 +71,10 @@ def clip_and_upload_pipelined(input_path, highlights, max_workers=3):
         highlight_id = highlight.get("id", f"highlight_{index}")
         output_file = f"/tmp/highlight_{highlight_id}.mp4"
 
-        # Blur pad: scale source to fill 1080x1920 bg, blur it,
-        # overlay original video scaled to fit width (1080x607), centered.
+        # Crop to fill 1080x1920, keeping center of frame
         shorts_filter = (
-            "split[bg][fg];"
-            "[bg]scale=1080:1920:force_original_aspect_ratio=increase,"
-            "crop=1080:1920,boxblur=30:30[blurred];"
-            "[fg]scale=1080:-2[main];"
-            "[blurred][main]overlay=(W-w)/2:(H-h)/2"
+            "scale=1080:1920:force_original_aspect_ratio=increase,"
+            "crop=1080:1920"
         )
 
         command = [
@@ -98,8 +94,8 @@ def clip_and_upload_pipelined(input_path, highlights, max_workers=3):
         ]
 
         try:
-            # Clip video — allow 5s per second of clip plus 60s overhead for the blur pad filter
-            encode_timeout = int(duration * 5) + 60
+            # Clip video — allow 2s per second of clip plus 30s overhead
+            encode_timeout = int(duration * 2) + 30
             subprocess.run(
                 command, check=True, capture_output=True, text=True, timeout=encode_timeout
             )
