@@ -40,7 +40,7 @@ DOUBLES_CONFIG = VideoConfig(
     ma_window=5,
     spike_strength=3,
     pre_padding=0.5,
-    post_padding=2.5,
+    post_padding=2.0,
 )
 
 
