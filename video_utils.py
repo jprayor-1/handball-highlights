@@ -30,7 +30,7 @@ SINGLES_CONFIG = VideoConfig(
 DOUBLES_CONFIG = VideoConfig(
     threshold_percentile=25,  # more bodies = more baseline motion, raise threshold
     volley_tolerance=4,  # doubles rallies have more brief pauses
-    variance_threshold=40.0,  # lower bar — motion is spread across more players
+    variance_threshold=35.0,  # lower bar — motion is spread across more players
     ratio_threshold=0.6,  # slightly more edge motion acceptable
     min_event_seconds=11,
     ma_window=5,
