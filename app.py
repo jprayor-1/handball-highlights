@@ -30,6 +30,7 @@ logging.basicConfig(
 )
 
 logging.info({"ffmpeg_path": shutil.which("ffmpeg")})
+logging.info({"rate_limit_storage": "redis" if os.environ.get("REDIS_URL") else "memory (NOT shared across workers!)"})
 
 redis_url = os.environ.get("REDIS_URL")
 
@@ -197,6 +198,7 @@ def process_video_from_r2():
     return jsonify({"job_id": job.id, "status": "queued"}), 202
 
 
+@limiter.exempt
 @app.route("/api/jobs/<job_id>", methods=["GET"])
 def get_job_status(job_id):
     """Poll for the status and result of a video processing job."""
@@ -226,6 +228,7 @@ def get_job_status(job_id):
         return jsonify({"error": str(e)}), 500
 
 
+@limiter.exempt
 @app.route("/api/uploads", methods=["DELETE"])
 def delete_upload():
     """
@@ -255,6 +258,7 @@ def delete_upload():
 
 
 @app.route("/api/uploads/presign", methods=["POST"])
+@limiter.limit("3 per day")
 def presign_upload():
     """
     Generate a presigned URL for uploading a long video to R2
