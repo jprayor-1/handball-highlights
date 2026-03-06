@@ -15,6 +15,8 @@ class VideoConfig:
     min_event_seconds: int
     ma_window: int
     spike_strength: int
+    pre_padding: float
+    post_padding: float
 
 
 SINGLES_CONFIG = VideoConfig(
@@ -25,6 +27,8 @@ SINGLES_CONFIG = VideoConfig(
     min_event_seconds=11,
     ma_window=5,
     spike_strength=3,
+    pre_padding=0.5,
+    post_padding=1.0,
 )
 
 DOUBLES_CONFIG = VideoConfig(
@@ -35,6 +39,8 @@ DOUBLES_CONFIG = VideoConfig(
     min_event_seconds=11,
     ma_window=5,
     spike_strength=3,
+    pre_padding=0.5,
+    post_padding=2.5,
 )
 
 
@@ -266,8 +272,8 @@ def process_video(
             in_volley = False
             segments.append((volley_start_time, t))
 
-    PRE_PADDING = 0.5  # seconds before volley start
-    POST_PADDING = 1.0  # seconds after volley end
+    PRE_PADDING = config.pre_padding
+    POST_PADDING = config.post_padding
     video_end = times[-1]
 
     # Filter out short segments
