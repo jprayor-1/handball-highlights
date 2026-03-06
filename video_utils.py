@@ -19,7 +19,7 @@ class VideoConfig:
 
 SINGLES_CONFIG = VideoConfig(
     threshold_percentile=19,
-    volley_tolerance=2.0,
+    volley_tolerance=2.0,  # might need to experiment with this
     variance_threshold=50.0,
     ratio_threshold=0.7,
     min_event_seconds=11,
