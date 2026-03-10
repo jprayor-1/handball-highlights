@@ -59,7 +59,7 @@ limiter = Limiter(
 )
 
 # Flask confi for max upload size
-app.config["MAX_CONTENT_LENGTH"] = 1 * 1024 * 1024 * 1024  # 3GB
+app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024 * 1024  # 16GB
 
 ALLOWED_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv"}
 ALLOWED_MIME_TYPES = {
@@ -68,7 +68,7 @@ ALLOWED_MIME_TYPES = {
     "video/x-msvideo",
     "video/x-matroska",
 }
-MAX_FILE_SIZE = 1 * 1024 * 1024 * 1024  # 1GB
+MAX_FILE_SIZE = 16 * 1024 * 1024 * 1024  # 16GB
 MAX_HIGHLIGHT_SIZE = 200 * 1024 * 1024  # 200 MB
 
 
@@ -111,7 +111,7 @@ def upload_video():
     file.seek(0)  # Reset pointer
 
     if file_size > MAX_FILE_SIZE:
-        return jsonify({"error": "File too large (max 1GB)"}), 413
+        return jsonify({"error": "File too large (max 16GB)"}), 413
 
     # Create temporary file that auto-deletes
     with tempfile.NamedTemporaryFile(delete=True, suffix=ext) as temp_video:
@@ -138,7 +138,7 @@ def upload_video():
 
 @app.errorhandler(413)
 def request_entity_too_large(error):
-    return jsonify({"error": "File too large. Maximum upload size is 3GB"}), 413
+    return jsonify({"error": "File too large. Maximum upload size is 16GB"}), 413
 
 
 @app.before_request
@@ -288,7 +288,7 @@ def presign_upload():
         )
 
     if not filesize or int(filesize) > MAX_FILE_SIZE:
-        return jsonify({"error": "File too large (max 1GB)"}), 413
+        return jsonify({"error": "File too large (max 16GB)"}), 413
 
     if not content_type or content_type not in ALLOWED_MIME_TYPES:
         return (
