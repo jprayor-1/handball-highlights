@@ -4,7 +4,7 @@ import logging
 
 from clip_video import clip_and_upload_pipelined
 from video_utils import process_video
-from video_handle import download_file
+from video_handle import download_file, delete_file
 from compress_video import smart_compress
 from email_utils import send_job_complete_email, send_job_failed_email
 
@@ -45,6 +45,9 @@ def run_video_processing(key: str, email: str | None = None, game_type: str = "s
                 "count": len(clipped_highlights),
             }
         )
+
+        delete_file(key)
+        logger.info({"event": "original_deleted", "key": key})
 
         if email:
             send_job_complete_email(email, len(clipped_highlights))
