@@ -63,6 +63,49 @@ def upload_clip(file_path, object_name):
     return f"https://pub-c14ece83a7684bd0b4dde59409667543.r2.dev/{object_name}"
 
 
+def create_multipart_upload(key: str, content_type: str) -> str:
+    r2 = get_r2_client()
+    response = r2.create_multipart_upload(
+        Bucket=os.getenv("R2_BUCKET_NAME"),
+        Key=key,
+        ContentType=content_type,
+    )
+    return response["UploadId"]
+
+
+def presign_upload_part(key: str, upload_id: str, part_number: int, expiration: int = 3600) -> str:
+    r2 = get_r2_client()
+    return r2.generate_presigned_url(
+        "upload_part",
+        Params={
+            "Bucket": os.getenv("R2_BUCKET_NAME"),
+            "Key": key,
+            "UploadId": upload_id,
+            "PartNumber": part_number,
+        },
+        ExpiresIn=expiration,
+    )
+
+
+def complete_multipart_upload(key: str, upload_id: str, parts: list) -> None:
+    r2 = get_r2_client()
+    r2.complete_multipart_upload(
+        Bucket=os.getenv("R2_BUCKET_NAME"),
+        Key=key,
+        UploadId=upload_id,
+        MultipartUpload={"Parts": parts},
+    )
+
+
+def abort_multipart_upload(key: str, upload_id: str) -> None:
+    r2 = get_r2_client()
+    r2.abort_multipart_upload(
+        Bucket=os.getenv("R2_BUCKET_NAME"),
+        Key=key,
+        UploadId=upload_id,
+    )
+
+
 def download_file(key: str, destination_path: str):
     """
     Stream a file from R2 to local disk.

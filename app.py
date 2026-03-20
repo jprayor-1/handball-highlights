@@ -17,7 +17,14 @@ from rq import Queue
 from rq.job import Job, NoSuchJobError
 
 from video_utils import process_video
-from video_handle import delete_file, generate_presigned_upload_url
+from video_handle import (
+    delete_file,
+    generate_presigned_upload_url,
+    create_multipart_upload,
+    presign_upload_part,
+    complete_multipart_upload,
+    abort_multipart_upload,
+)
 
 
 app = Flask(__name__)
@@ -310,6 +317,91 @@ def presign_upload():
                 "ip": request.remote_addr,
             }
         )
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/uploads/multipart/initiate", methods=["POST"])
+@limiter.limit("3 per day")
+def initiate_multipart():
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Missing request body"}), 400
+
+    filename = data.get("filename")
+    filesize = data.get("filesize")
+    content_type = data.get("content_type")
+
+    if not filename or not filesize or not content_type:
+        return jsonify({"error": "Missing required fields: filename, filesize, content_type"}), 400
+
+    if int(filesize) > MAX_FILE_SIZE:
+        return jsonify({"error": f"File too large (max 35GB)"}), 413
+
+    if content_type not in ALLOWED_MIME_TYPES:
+        return jsonify({"error": f"Invalid content type. Allowed: {ALLOWED_MIME_TYPES}"}), 400
+
+    key = f"uploads/raw/{uuid.uuid4()}_{filename}"
+    try:
+        upload_id = create_multipart_upload(key, content_type)
+        return jsonify({"key": key, "upload_id": upload_id}), 200
+    except Exception as e:
+        logging.exception({"event": "multipart_initiate_failed", "error": str(e)})
+        return jsonify({"error": str(e)}), 500
+
+
+@limiter.exempt
+@app.route("/api/uploads/multipart/presign-part", methods=["POST"])
+def multipart_presign_part():
+    data = request.get_json()
+    key = data.get("key")
+    upload_id = data.get("upload_id")
+    part_number = data.get("part_number")
+
+    if not key or not upload_id or not part_number:
+        return jsonify({"error": "Missing required fields: key, upload_id, part_number"}), 400
+
+    try:
+        url = presign_upload_part(key, upload_id, int(part_number))
+        return jsonify({"url": url}), 200
+    except Exception as e:
+        logging.exception({"event": "multipart_presign_part_failed", "error": str(e)})
+        return jsonify({"error": str(e)}), 500
+
+
+@limiter.exempt
+@app.route("/api/uploads/multipart/complete", methods=["POST"])
+def multipart_complete():
+    data = request.get_json()
+    key = data.get("key")
+    upload_id = data.get("upload_id")
+    parts = data.get("parts")  # [{"PartNumber": 1, "ETag": "..."}]
+
+    if not key or not upload_id or not parts:
+        return jsonify({"error": "Missing required fields: key, upload_id, parts"}), 400
+
+    try:
+        complete_multipart_upload(key, upload_id, parts)
+        return jsonify({"key": key}), 200
+    except Exception as e:
+        logging.exception({"event": "multipart_complete_failed", "error": str(e)})
+        return jsonify({"error": str(e)}), 500
+
+
+@limiter.exempt
+@app.route("/api/uploads/multipart/abort", methods=["POST"])
+def multipart_abort():
+    data = request.get_json()
+    key = data.get("key")
+    upload_id = data.get("upload_id")
+
+    if not key or not upload_id:
+        return jsonify({"error": "Missing required fields: key, upload_id"}), 400
+
+    try:
+        abort_multipart_upload(key, upload_id)
+        return jsonify({"aborted": True}), 200
+    except Exception as e:
+        logging.exception({"event": "multipart_abort_failed", "error": str(e)})
         return jsonify({"error": str(e)}), 500
 
 
