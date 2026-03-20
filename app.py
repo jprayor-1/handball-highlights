@@ -46,7 +46,7 @@ logging.info({"rate_limit_exempt_ips": list(EXEMPT_IPS) if EXEMPT_IPS else "none
 
 if redis_url:
     redis_conn = Redis.from_url(redis_url)
-    task_queue = Queue("video", connection=redis_conn, default_timeout=1200)
+    task_queue = Queue("video", connection=redis_conn, default_timeout=7200)  # 2 hours
 else:
     redis_conn = None
     task_queue = None

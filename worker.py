@@ -16,5 +16,5 @@ redis_conn = Redis.from_url(redis_url)
 queues = [Queue("video", connection=redis_conn)]
 
 if __name__ == "__main__":
-    worker = Worker(queues, connection=redis_conn)
+    worker = Worker(queues, connection=redis_conn, job_execution_timeout=7200)
     worker.work(with_scheduler=False)
