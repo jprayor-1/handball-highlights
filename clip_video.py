@@ -13,7 +13,7 @@ R2_PUBLIC_URL = os.getenv(
 )
 
 
-def clip_and_upload_pipelined(input_path, highlights, max_workers=3):
+def clip_and_upload_pipelined(input_path, highlights, max_workers=1):
     """
     Pipeline clipping and uploading for maximum speed.
 
