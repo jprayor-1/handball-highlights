@@ -10,10 +10,12 @@ FROM_EMAIL = os.environ.get("FROM_EMAIL", "highlights@yourdomain.com")
 APP_URL = os.environ.get("APP_URL", "https://yourapp.com")
 
 
-def send_job_complete_email(email: str, highlight_count: int) -> None:
+def send_job_complete_email(email: str, highlight_count: int, job_id: str) -> None:
     if not resend.api_key:
         logger.warning({"event": "email_skipped", "reason": "RESEND_API_KEY not set"})
         return
+
+    results_url = f"{APP_URL}/results/{job_id}"
 
     try:
         resend.Emails.send({
@@ -28,7 +30,7 @@ def send_job_complete_email(email: str, highlight_count: int) -> None:
                     <p style="color: #555; font-size: 16px;">
                         We found <strong>{highlight_count} highlight{'' if highlight_count == 1 else 's'}</strong> from your game footage.
                     </p>
-                    <a href="{APP_URL}" style="display: inline-block; margin-top: 16px; padding: 12px 24px;
+                    <a href="{results_url}" style="display: inline-block; margin-top: 16px; padding: 12px 24px;
                         background: #000; color: #fff; text-decoration: none; font-weight: 700;
                         border-radius: 8px; text-transform: uppercase; letter-spacing: 1px;">
                         View Highlights

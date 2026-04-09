@@ -2,6 +2,7 @@ import os
 import tempfile
 import logging
 
+from rq import get_current_job
 from clip_video import clip_and_upload_pipelined
 from video_utils import process_video
 from video_handle import download_file, delete_file
@@ -50,7 +51,9 @@ def run_video_processing(key: str, email: str | None = None, game_type: str = "s
         logger.info({"event": "original_deleted", "key": key})
 
         if email:
-            send_job_complete_email(email, len(clipped_highlights))
+            job = get_current_job()
+            job_id = job.id if job else "unknown"
+            send_job_complete_email(email, len(clipped_highlights), job_id)
 
         return {"key": key, "highlights": clipped_highlights}
     except Exception:
